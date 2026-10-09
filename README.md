@@ -35,6 +35,7 @@ incoming request
 ```
 
 - "Metered" means the event is queued. It leaves your server only when an API key is configured, in batches in the background, and can be dropped. The 403 is metered as `agent_blocked` and manifest hits as `agent_manifest`.
+- The manifest at the three fixed paths is the same for every caller and is cacheable (`public, max-age=60, s-maxage=300` on Next.js). A manifest or 403 chosen from the request headers on any other path (`Accept: application/agent+json`, `agentPolicy` `manifest` or `block`) is sent with `Cache-Control: private, no-store` and `Vary: Accept, User-Agent, x-stealthmark-agent`, so a shared cache cannot hand it to other visitors.
 - Detection runs on every request and inspects the request headers and path. That is cheap but not free: the SDK adds a small per-request cost on all traffic, and no latency figure is published here.
 - Next.js: `withStealthMark` adds the headers to the response of your own middleware. The minimal `stealthmark()` returns nothing for requests it passes through, so it adds no headers to them.
 
@@ -101,7 +102,7 @@ export const config = {
 };
 ```
 
-In `observe` mode the site responds exactly as before. Requests identified as coming from an agent get an `x-stealthmark-agent-detected` response header and, if an API key is set, are reported as usage events. `/.well-known/agent.json` and requests with `Accept: application/agent+json` always receive the manifest. Other policies are `manifest` (Next.js: detected agents get the manifest on every path; Express and Fastify: only on `/`) and `block` (agents get a 403).
+In `observe` mode your page content is not changed. What differs is response headers: `withStealthMark`, Express and Fastify add the informational `x-stealthmark-shield` and `x-stealthmark-agent-policy` headers to every response they handle, human visitors included. Requests identified as coming from an agent also get an `x-stealthmark-agent-detected` response header and, if an API key is set, are reported as usage events. `/.well-known/agent.json` and requests with `Accept: application/agent+json` always receive the manifest. Other policies are `manifest` (Next.js: detected agents get the manifest on every path; Express and Fastify: only on `/`) and `block` (agents get a 403).
 
 The manifest is StealthMark's own format. It is not an A2A Agent Card, an MCP server manifest or an adopted standard.
 

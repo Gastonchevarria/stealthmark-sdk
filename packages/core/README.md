@@ -111,6 +111,7 @@ Behavior:
 - Batches by `maxBatch` (default 100, max 500) or `flushIntervalMs` (default 1000).
 - Retries 5xx and network errors three times (250 ms, 1 s, 4 s), then drops the batch (`failures`, `dropped`).
 - On `429 quota_exceeded` it stops sending for `retry_after_seconds` (default 300) and drops events meanwhile (`stats().dropped`), exposing the resume time as `stats().pausedUntil` (`null` when not paused; `quotaExceededUntil` is the same value kept for compatibility). Pass `onQuotaExceeded` to be told when it happens: it receives `{ pausedUntil, retryAfterSeconds, dropped }` once per 429, and exceptions it throws are swallowed. Events are not buffered across the pause, so a customer who wants to alert on it should wire this callback. Your site keeps serving traffic; only reporting pauses.
+- Any other `429` is the API's per-key rate limiter (`rate_limit_exceeded`), not a quota problem: nothing is dropped, `pausedUntil` stays `null` and `onQuotaExceeded` is not called. The batch stays queued and sending resumes after the `Retry-After` header (or `retry_after` in the body; 60 seconds when neither is present, never more than 300). Events recorded during the wait are queued, up to 10,000, and `flush()` returns without sending until the wait is over.
 - On serverless or Edge runtimes, pending timers can be frozen after the response is sent. Call `await sm.usage.flush()` (or `event.waitUntil(sm.usage.flush())`) at the end of the request when you need delivery guarantees.
 
 You can also use the reporter standalone:

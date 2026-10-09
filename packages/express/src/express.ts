@@ -4,7 +4,7 @@
 // ═══════════════════════════════════════════════════════════════════
 
 import { createStealthMark, type StealthMarkConfig } from '@stealthmark/core';
-import { isManifestPath, meterAgentRequest, meterBlockedRequest } from './meter.js';
+import { NEGOTIATED_CACHE_CONTROL, isManifestPath, meterAgentRequest, meterBlockedRequest, negotiatedVary } from './meter.js';
 
 export interface ExpressRequestLike {
   method?: string;
@@ -16,6 +16,8 @@ export interface ExpressRequestLike {
 
 export interface ExpressResponseLike {
   setHeader(name: string, value: string): void;
+  /** Present on real Express responses; used to keep a Vary header that earlier middleware already set. */
+  getHeader?(name: string): unknown;
   status(code: number): ExpressResponseLike;
   send(body: string): void;
 }
@@ -23,6 +25,11 @@ export interface ExpressResponseLike {
 export type ExpressNextFunction = (err?: unknown) => void;
 
 const BLOCKED_BODY = { error: 'agent_blocked', message: 'This site does not accept automated agent traffic.' };
+
+function markNegotiated(res: ExpressResponseLike): void {
+  res.setHeader('Vary', negotiatedVary(res.getHeader?.('Vary')));
+  res.setHeader('Cache-Control', NEGOTIATED_CACHE_CONTROL);
+}
 
 /**
  * Creates an Express-compatible middleware that serves the agent manifest, applies `agentPolicy`
@@ -59,6 +66,7 @@ export function stealthmarkExpress(config: StealthMarkConfig) {
       for (const [k, v] of Object.entries(sm.responseHeaders)) {
         res.setHeader(k, v);
       }
+      markNegotiated(res);
       res.setHeader('Content-Type', 'application/json; charset=utf-8');
       res.status(403).send(JSON.stringify(BLOCKED_BODY));
       return;
@@ -72,6 +80,7 @@ export function stealthmarkExpress(config: StealthMarkConfig) {
       res.setHeader('Access-Control-Allow-Origin', '*');
       res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
       res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-stealthmark-agent');
+      if (!isWellKnown) markNegotiated(res);
 
       for (const [k, v] of Object.entries(sm.responseHeaders)) {
         res.setHeader(k, v);

@@ -13,6 +13,23 @@ export function isManifestPath(pathOnly: string): boolean {
   );
 }
 
+/** A response chosen from the request headers (manifest on an ordinary path, or the block 403) is never stored as the answer for that URL. */
+export const NEGOTIATED_CACHE_CONTROL = 'private, no-store';
+
+const NEGOTIATED_VARY_HEADERS = ['Accept', 'User-Agent', 'x-stealthmark-agent'] as const;
+
+/** Vary value that names the headers that decided the response, keeping whatever earlier middleware already put in Vary. */
+export function negotiatedVary(existing: unknown): string {
+  const current = Array.isArray(existing) ? existing.join(',') : typeof existing === 'string' ? existing : '';
+  const tokens = current.split(',').map((token) => token.trim()).filter((token) => token.length > 0);
+  if (tokens.includes('*')) return '*';
+  const present = new Set(tokens.map((token) => token.toLowerCase()));
+  for (const name of NEGOTIATED_VARY_HEADERS) {
+    if (!present.has(name.toLowerCase())) tokens.push(name);
+  }
+  return tokens.join(', ');
+}
+
 function recordEvent(
   sm: StealthMarkInstance,
   eventType: UsageEventType,

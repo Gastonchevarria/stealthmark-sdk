@@ -4,7 +4,7 @@
 // ═══════════════════════════════════════════════════════════════════
 
 import { createStealthMark, type StealthMarkConfig } from '@stealthmark/core';
-import { isManifestPath, meterAgentRequest, meterBlockedRequest } from './meter.js';
+import { NEGOTIATED_CACHE_CONTROL, isManifestPath, meterAgentRequest, meterBlockedRequest, negotiatedVary } from './meter.js';
 
 export interface FastifyRequestLike {
   method?: string;
@@ -16,6 +16,8 @@ export interface FastifyRequestLike {
 
 export interface FastifyReplyLike {
   header(name: string, value: string): FastifyReplyLike;
+  /** Present on real Fastify replies; used to keep a Vary header that earlier hooks already set. */
+  getHeader?(name: string): unknown;
   code(statusCode: number): FastifyReplyLike;
   send(payload: unknown): FastifyReplyLike;
 }
@@ -23,6 +25,11 @@ export interface FastifyReplyLike {
 export type FastifyHookDone = (err?: Error) => void;
 
 const BLOCKED_BODY = { error: 'agent_blocked', message: 'This site does not accept automated agent traffic.' };
+
+function markNegotiated(reply: FastifyReplyLike): void {
+  reply.header('Vary', negotiatedVary(reply.getHeader?.('Vary')));
+  reply.header('Cache-Control', NEGOTIATED_CACHE_CONTROL);
+}
 
 /**
  * Creates a Fastify preHandler hook that serves the agent manifest, applies `agentPolicy`
@@ -59,6 +66,7 @@ export function stealthmarkFastify(config: StealthMarkConfig) {
       for (const [k, v] of Object.entries(sm.responseHeaders)) {
         reply.header(k, v);
       }
+      markNegotiated(reply);
       reply.code(403).send(BLOCKED_BODY);
       return;
     }
@@ -71,6 +79,7 @@ export function stealthmarkFastify(config: StealthMarkConfig) {
         .header('Access-Control-Allow-Origin', '*')
         .header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
         .header('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-stealthmark-agent');
+      if (!isWellKnown) markNegotiated(reply);
 
       for (const [k, v] of Object.entries(sm.responseHeaders)) {
         reply.header(k, v);

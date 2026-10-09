@@ -84,6 +84,8 @@ fastify.listen({ port: 3000 });
 - `'manifest'`: detected agents get the manifest instead of the page, on `/` only. Other paths pass through as in `observe`. (`@stealthmark/next` serves the manifest on every path in this mode.)
 - `'block'`: detected agents get a 403 with a JSON body. Manifest paths and `Accept: application/agent+json` requests are still answered with the manifest.
 
+A manifest served on `/` and the 403 are chosen from the request headers, so they are sent with `Cache-Control: private, no-store` and a `Vary` header naming `Accept`, `User-Agent` and `x-stealthmark-agent` (merged with any `Vary` your app already set). The fixed manifest paths set no cache headers.
+
 ## License
 
 Apache 2.0, see [LICENSE](./LICENSE) and [NOTICE](./NOTICE).

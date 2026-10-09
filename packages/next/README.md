@@ -4,7 +4,7 @@
 
 > Detects only agents that identify themselves. It does not detect stealth bots and is not a security control.
 
-By default (`agentPolicy: 'observe'`) your pages answer exactly as before. Requests from agents that identify themselves are tagged with an `x-stealthmark-agent-detected` response header and, if you set an API key, metered. Agents get the JSON manifest at `/.well-known/agent.json`, or on any path when they send `Accept: application/agent+json`. Set `agentPolicy: 'manifest'` to serve the manifest to detected agents instead of the page, or `'block'` to answer them with 403.
+By default (`agentPolicy: 'observe'`) your page content is unchanged; `withStealthMark` only adds the informational `x-stealthmark-shield` and `x-stealthmark-agent-policy` response headers to every response of your middleware, human visitors included. Requests from agents that identify themselves are tagged with an `x-stealthmark-agent-detected` response header and, if you set an API key, metered. Agents get the JSON manifest at `/.well-known/agent.json`, or on any path when they send `Accept: application/agent+json`. Set `agentPolicy: 'manifest'` to serve the manifest to detected agents instead of the page, or `'block'` to answer them with 403.
 
 The manifest is StealthMark's own format. It is not an A2A Agent Card, an MCP server manifest or an adopted standard.
 
@@ -56,7 +56,7 @@ export const config = {
 - Serves the manifest at `/.well-known/agent.json`, and also at `/.well-known/ai-plugin.json` and `/api/agent-manifest`. These paths are answered by the middleware for every visitor, so do not use them for your own routes.
 - Detects agents that identify themselves by Accept header, User-Agent, or `x-stealthmark-agent`
 - Adds an informational `x-stealthmark-shield: ACTIVE` marker header to responses from your middleware (it does not protect anything), plus `x-stealthmark-agent-detected` and `x-stealthmark-agent-id` when an agent is detected
-- Returns CORS-friendly agent manifests
+- Returns CORS-friendly agent manifests. The manifest on the three fixed paths is cacheable (`public, max-age=60, s-maxage=300`); a manifest or 403 chosen from the request headers on any other path is sent with `Cache-Control: private, no-store` and `Vary: accept, user-agent, x-stealthmark-agent`
 
 ## Composing with Existing Middleware
 

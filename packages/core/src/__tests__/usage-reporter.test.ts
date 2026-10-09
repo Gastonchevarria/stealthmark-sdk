@@ -231,6 +231,121 @@ describe('createUsageReporter', () => {
     expect(reporter.stats().pausedUntil).not.toBeNull();
   });
 
+  describe('429 rate_limit_exceeded (per-key rate limiter, not the plan quota)', () => {
+    function rateLimited(headers: Record<string, string> = {}, body: Record<string, unknown> = { error: 'rate_limit_exceeded', retry_after: 30 }): Response {
+      return new Response(JSON.stringify(body), {
+        status: 429,
+        headers: { 'content-type': 'application/json', ...headers },
+      });
+    }
+
+    function acceptAll(): void {
+      fetchMock.mockImplementation(async (_url: string, init: { body: string }) => {
+        const count = (JSON.parse(init.body) as SentBody).events.length;
+        return jsonResponse(200, { accepted: count, rejected: 0 });
+      });
+    }
+
+    it('keeps the batch, does not pause, does not call onQuotaExceeded and resends after Retry-After', async () => {
+      fetchMock.mockImplementationOnce(async () => rateLimited({ 'retry-after': '30' }));
+      acceptAll();
+      const onQuotaExceeded = vi.fn();
+      const reporter = createUsageReporter({ apiKey: 'k', onQuotaExceeded });
+      reporter.record({ event_type: 'agent_request', agent_identifier: 'GPTBot' });
+      await reporter.flush();
+
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(reporter.stats()).toMatchObject({ queued: 1, sent: 0, dropped: 0, failures: 0, pausedUntil: null, quotaExceededUntil: null });
+      expect(onQuotaExceeded).not.toHaveBeenCalled();
+
+      await vi.advanceTimersByTimeAsync(29_999);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(sentBodies(fetchMock)[1].events[0]).toMatchObject({ agent_identifier: 'GPTBot' });
+      expect(reporter.stats()).toMatchObject({ queued: 0, sent: 1, dropped: 0, failures: 0 });
+      expect(onQuotaExceeded).not.toHaveBeenCalled();
+    });
+
+    it('queues new events during the backoff instead of dropping them and sends them with the kept batch', async () => {
+      fetchMock.mockImplementationOnce(async () => rateLimited({ 'retry-after': '10' }));
+      acceptAll();
+      const reporter = createUsageReporter({ apiKey: 'k' });
+      reporter.record({ metadata: { n: 1 } });
+      await reporter.flush();
+
+      reporter.record({ metadata: { n: 2 } });
+      reporter.record({ metadata: { n: 3 } });
+      await reporter.flush();
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(reporter.stats()).toMatchObject({ queued: 3, dropped: 0, pausedUntil: null });
+
+      await vi.advanceTimersByTimeAsync(10_000);
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(sentBodies(fetchMock)[1].events.map((event) => (event.metadata as { n: number }).n)).toEqual([1, 2, 3]);
+      expect(reporter.stats()).toMatchObject({ queued: 0, sent: 3, dropped: 0 });
+    });
+
+    it('falls back to the retry_after field of the body when there is no Retry-After header', async () => {
+      fetchMock.mockImplementationOnce(async () => rateLimited({}, { error: 'rate_limit_exceeded', retry_after: 5 }));
+      acceptAll();
+      const reporter = createUsageReporter({ apiKey: 'k' });
+      reporter.record({});
+      await reporter.flush();
+
+      await vi.advanceTimersByTimeAsync(4_999);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
+    it('treats a 429 without a quota_exceeded error as a rate limit and waits 60 seconds when there is no hint', async () => {
+      fetchMock.mockImplementationOnce(async () => new Response('Too Many Requests', { status: 429 }));
+      acceptAll();
+      const onQuotaExceeded = vi.fn();
+      const reporter = createUsageReporter({ apiKey: 'k', onQuotaExceeded });
+      reporter.record({});
+      await reporter.flush();
+
+      expect(reporter.stats()).toMatchObject({ queued: 1, dropped: 0, pausedUntil: null });
+      await vi.advanceTimersByTimeAsync(59_999);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(onQuotaExceeded).not.toHaveBeenCalled();
+    });
+
+    it('caps an oversized Retry-After at 300 seconds', async () => {
+      fetchMock.mockImplementationOnce(async () => rateLimited({ 'retry-after': '86400' }));
+      acceptAll();
+      const reporter = createUsageReporter({ apiKey: 'k' });
+      reporter.record({});
+      await reporter.flush();
+
+      await vi.advanceTimersByTimeAsync(299_999);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
+    it('still pauses and reports quota_exceeded when the plan quota is the cause', async () => {
+      fetchMock.mockImplementationOnce(async () =>
+        new Response(JSON.stringify({ error: 'quota_exceeded', retry_after_seconds: 60 }), {
+          status: 429,
+          headers: { 'content-type': 'application/json', 'retry-after': '60' },
+        })
+      );
+      const onQuotaExceeded = vi.fn();
+      const reporter = createUsageReporter({ apiKey: 'k', onQuotaExceeded });
+      reporter.record({});
+      await reporter.flush();
+
+      expect(reporter.stats()).toMatchObject({ queued: 0, dropped: 1 });
+      expect(reporter.stats().pausedUntil).not.toBeNull();
+      expect(onQuotaExceeded).toHaveBeenCalledTimes(1);
+    });
+  });
+
   it('forwards onQuotaExceeded from createStealthMark config', async () => {
     fetchMock.mockImplementation(async () => jsonResponse(429, { error: 'quota_exceeded', retry_after_seconds: 5 }));
     const onQuotaExceeded = vi.fn();

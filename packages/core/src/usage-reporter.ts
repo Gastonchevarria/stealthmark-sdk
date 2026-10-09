@@ -19,6 +19,8 @@ const MAX_BATCH_LIMIT = 500;
 const MAX_QUEUE = 10_000;
 const RETRY_DELAYS_MS = [250, 1000, 4000] as const;
 const DEFAULT_RETRY_AFTER_SECONDS = 300;
+const DEFAULT_RATE_LIMIT_RETRY_SECONDS = 60;
+const MAX_RATE_LIMIT_RETRY_SECONDS = 300;
 const REQUEST_TIMEOUT_MS = 10_000;
 const MAX_IDENTIFIER_LENGTH = 256;
 
@@ -110,7 +112,9 @@ export function resolveAgentIdentifier(
  * Batches by `maxBatch` or `flushIntervalMs`, retries 5xx and network errors
  * three times (250 ms, 1 s, 4 s), and on 429 quota_exceeded pauses for
  * `retry_after_seconds`, dropping events meanwhile (counted in `stats().dropped`, with the resume time in
- * `stats().pausedUntil`). `onQuotaExceeded` lets the host app surface the pause. Without an API key it is inert.
+ * `stats().pausedUntil`). `onQuotaExceeded` lets the host app surface the pause. Any other 429 is a plain rate limit:
+ * the batch is kept and sent again after the server's Retry-After, without reporting a quota pause.
+ * Without an API key it is inert.
  */
 export function createUsageReporter(options: UsageReporterOptions): UsageReporter {
   const apiKey = options.apiKey;
@@ -126,8 +130,10 @@ export function createUsageReporter(options: UsageReporterOptions): UsageReporte
   let dropped = 0;
   let failures = 0;
   let pausedUntil = 0;
+  let rateLimitedUntil = 0;
 
   const isPaused = (): boolean => pausedUntil > Date.now();
+  const isRateLimited = (): boolean => rateLimitedUntil > Date.now();
 
   function clearTimer(): void {
     if (timer !== null) {
@@ -138,10 +144,11 @@ export function createUsageReporter(options: UsageReporterOptions): UsageReporte
 
   function schedule(): void {
     if (timer !== null) return;
+    const delay = Math.max(flushIntervalMs, rateLimitedUntil - Date.now());
     timer = unrefTimer(() => {
       timer = null;
       void flush();
-    }, flushIntervalMs);
+    }, delay);
   }
 
   function dropQueued(): void {
@@ -156,11 +163,15 @@ export function createUsageReporter(options: UsageReporterOptions): UsageReporte
     dropped += batchSize - accepted;
   }
 
-  async function handleQuotaExceeded(response: Response, batchSize: number): Promise<void> {
-    const body = await readJsonObject(response);
+  function retryAfterHeaderSeconds(response: Response): number | undefined {
     const headerSeconds = Number(response.headers.get('retry-after'));
+    return Number.isFinite(headerSeconds) && headerSeconds > 0 ? headerSeconds : undefined;
+  }
+
+  function handleQuotaExceeded(body: Record<string, unknown>, response: Response, batchSize: number): void {
     const retryAfter = numberField(body, 'retry_after_seconds')
-      ?? (Number.isFinite(headerSeconds) && headerSeconds > 0 ? headerSeconds : DEFAULT_RETRY_AFTER_SECONDS);
+      ?? retryAfterHeaderSeconds(response)
+      ?? DEFAULT_RETRY_AFTER_SECONDS;
     pausedUntil = Date.now() + Math.max(retryAfter, 1) * 1000;
     const accepted = Math.min(numberField(body, 'accepted') ?? 0, batchSize);
     const droppedBefore = dropped;
@@ -168,6 +179,20 @@ export function createUsageReporter(options: UsageReporterOptions): UsageReporte
     dropped += batchSize - accepted;
     dropQueued();
     notifyQuotaExceeded(Math.max(retryAfter, 1), dropped - droppedBefore);
+  }
+
+  /**
+   * A 429 that is not `quota_exceeded` is the API's per-key rate limiter. Nothing is wrong with the plan, so the
+   * batch goes back to the front of the queue and sending resumes after Retry-After.
+   */
+  function handleRateLimited(body: Record<string, unknown>, response: Response, batch: UsageEvent[]): void {
+    const retryAfter = retryAfterHeaderSeconds(response) ?? numberField(body, 'retry_after') ?? DEFAULT_RATE_LIMIT_RETRY_SECONDS;
+    rateLimitedUntil = Date.now() + Math.min(Math.max(retryAfter, 1), MAX_RATE_LIMIT_RETRY_SECONDS) * 1000;
+    queue.unshift(...batch);
+    if (queue.length > MAX_QUEUE) {
+      dropped += queue.length - MAX_QUEUE;
+      queue.length = MAX_QUEUE;
+    }
   }
 
   function notifyQuotaExceeded(retryAfterSeconds: number, droppedNow: number): void {
@@ -199,7 +224,12 @@ export function createUsageReporter(options: UsageReporterOptions): UsageReporte
         return;
       }
       if (response.status === 429) {
-        await handleQuotaExceeded(response, batch.length);
+        const body = await readJsonObject(response);
+        if (body.error === 'quota_exceeded') {
+          handleQuotaExceeded(body, response, batch.length);
+        } else {
+          handleRateLimited(body, response, batch);
+        }
         return;
       }
       if (response.status >= 400 && response.status < 500 && response.status !== 408) {
@@ -218,6 +248,7 @@ export function createUsageReporter(options: UsageReporterOptions): UsageReporte
         dropQueued();
         return;
       }
+      if (isRateLimited()) return;
       const batch = queue.splice(0, maxBatch);
       try {
         await sendBatch(batch);

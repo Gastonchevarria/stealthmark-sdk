@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
 import { stealthmarkExpress, type ExpressResponseLike } from '../express.js';
 import { stealthmarkFastify, type FastifyReplyLike } from '../fastify.js';
+import { negotiatedVary } from '../meter.js';
 
 describe('@stealthmark/express — Express Middleware', () => {
   const config = {
@@ -496,5 +497,122 @@ describe('@stealthmark/express — agentPolicy "manifest"', () => {
     expect(next).toHaveBeenCalledTimes(1);
     expect(headers['content-type']).toBeUndefined();
     expect(headers['x-stealthmark-agent-detected']).toBe('true');
+  });
+});
+
+describe('@stealthmark/express — caching of negotiated responses', () => {
+  const agentHeaders = { 'user-agent': 'Mozilla/5.0 GPTBot/1.0', accept: 'text/html' };
+  const VARY = 'Accept, User-Agent, x-stealthmark-agent';
+
+  function runExpress(
+    config: { siteName: string; agentPolicy?: 'observe' | 'manifest' | 'block' },
+    path: string,
+    headers: Record<string, string>,
+    existingVary?: string
+  ) {
+    const sent: Record<string, string> = {};
+    const res = {
+      setHeader: vi.fn((k: string, v: string) => {
+        sent[k.toLowerCase()] = v;
+      }),
+      getHeader: vi.fn((k: string) => (k.toLowerCase() === 'vary' ? existingVary : undefined)),
+      status: vi.fn(() => res),
+      send: vi.fn(),
+    };
+    const next = vi.fn();
+    stealthmarkExpress(config)({ path, headers }, res, next);
+    return { sent, res, next };
+  }
+
+  function runFastify(
+    config: { siteName: string; agentPolicy?: 'observe' | 'manifest' | 'block' },
+    url: string,
+    headers: Record<string, string>
+  ) {
+    const sent: Record<string, string> = {};
+    const reply = {
+      header: vi.fn((k: string, v: string) => {
+        sent[k.toLowerCase()] = v;
+        return reply;
+      }),
+      code: vi.fn(() => reply),
+      send: vi.fn(() => reply),
+    };
+    const done = vi.fn();
+    stealthmarkFastify(config)({ url, headers }, reply as unknown as FastifyReplyLike, done);
+    return { sent, reply, done };
+  }
+
+  it('express: a manifest served on / for Accept: application/agent+json is private and varies on the negotiating headers', () => {
+    const { sent, next } = runExpress({ siteName: 'Cache' }, '/', { ...agentHeaders, accept: 'application/agent+json' });
+    expect(next).not.toHaveBeenCalled();
+    expect(sent['vary']).toBe(VARY);
+    expect(sent['cache-control']).toBe('private, no-store');
+  });
+
+  it('express: agentPolicy "manifest" on / is private and varies', () => {
+    const { sent } = runExpress({ siteName: 'Cache', agentPolicy: 'manifest' }, '/', agentHeaders);
+    expect(sent['content-type']).toContain('application/agent+json');
+    expect(sent['vary']).toBe(VARY);
+    expect(sent['cache-control']).toBe('private, no-store');
+  });
+
+  it('express: the fixed manifest path sets neither Vary nor Cache-Control', () => {
+    const { sent } = runExpress({ siteName: 'Cache' }, '/.well-known/agent.json', agentHeaders);
+    expect(sent['vary']).toBeUndefined();
+    expect(sent['cache-control']).toBeUndefined();
+  });
+
+  it('express: the block 403 is private and varies', () => {
+    const { sent, res } = runExpress({ siteName: 'Cache', agentPolicy: 'block' }, '/pricing', agentHeaders);
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(sent['vary']).toBe(VARY);
+    expect(sent['cache-control']).toBe('private, no-store');
+  });
+
+  it('express: passes ordinary traffic through without touching Vary or Cache-Control', () => {
+    const { sent, next } = runExpress({ siteName: 'Cache' }, '/pricing', agentHeaders);
+    expect(next).toHaveBeenCalledTimes(1);
+    expect(sent['vary']).toBeUndefined();
+    expect(sent['cache-control']).toBeUndefined();
+  });
+
+  it('express: keeps a Vary value that earlier middleware already set', () => {
+    const { sent } = runExpress({ siteName: 'Cache', agentPolicy: 'manifest' }, '/', agentHeaders, 'Accept-Encoding, Origin');
+    expect(sent['vary']).toBe('Accept-Encoding, Origin, Accept, User-Agent, x-stealthmark-agent');
+  });
+
+  it('fastify: manifest on /, policy "manifest", and the block 403 are private and vary; the fixed path is not touched', () => {
+    const negotiated = runFastify({ siteName: 'Cache' }, '/', { ...agentHeaders, accept: 'application/agent+json' });
+    expect(negotiated.sent['vary']).toBe(VARY);
+    expect(negotiated.sent['cache-control']).toBe('private, no-store');
+
+    const policy = runFastify({ siteName: 'Cache', agentPolicy: 'manifest' }, '/', agentHeaders);
+    expect(policy.sent['vary']).toBe(VARY);
+    expect(policy.sent['cache-control']).toBe('private, no-store');
+
+    const blocked = runFastify({ siteName: 'Cache', agentPolicy: 'block' }, '/pricing', agentHeaders);
+    expect(blocked.reply.code).toHaveBeenCalledWith(403);
+    expect(blocked.sent['vary']).toBe(VARY);
+    expect(blocked.sent['cache-control']).toBe('private, no-store');
+
+    const fixed = runFastify({ siteName: 'Cache' }, '/.well-known/agent.json', agentHeaders);
+    expect(fixed.sent['vary']).toBeUndefined();
+    expect(fixed.sent['cache-control']).toBeUndefined();
+  });
+
+  describe('negotiatedVary', () => {
+    it('adds the negotiating headers to an empty Vary', () => {
+      expect(negotiatedVary(undefined)).toBe(VARY);
+    });
+
+    it('does not duplicate headers already present, whatever their case, and accepts an array', () => {
+      expect(negotiatedVary(['accept', 'Origin'])).toBe('accept, Origin, User-Agent, x-stealthmark-agent');
+      expect(negotiatedVary('USER-AGENT')).toBe('USER-AGENT, Accept, x-stealthmark-agent');
+    });
+
+    it('leaves Vary: * as it is', () => {
+      expect(negotiatedVary('*')).toBe('*');
+    });
   });
 });

@@ -48,6 +48,16 @@ const MANIFEST_PATHS = new Set([
   '/api/agent-manifest',
 ]);
 
+/** The manifest at a fixed path is the same for every caller, so shared caches may keep it for a few minutes. */
+const MANIFEST_CACHE_CONTROL = 'public, max-age=60, s-maxage=300';
+
+/**
+ * A response chosen from the request headers (a manifest on an ordinary path, or the block 403) must never be stored as
+ * the answer for that URL: it is private, and the headers that decided it are named in Vary.
+ */
+const NEGOTIATED_CACHE_CONTROL = 'private, no-store';
+const NEGOTIATED_VARY = 'accept, user-agent, x-stealthmark-agent';
+
 /**
  * Creates the minimal, manifest-only Next.js middleware.
  *
@@ -90,7 +100,7 @@ export function stealthmark(config: StealthMarkConfig) {
       scheduleUsageFlush(sm, event);
     }
 
-    if (handling === 'manifest') return createAgentResponse(sm.manifestJson, sm.responseHeaders, detection);
+    if (handling === 'manifest') return createAgentResponse(sm.manifestJson, sm.responseHeaders, detection, !MANIFEST_PATHS.has(pathname));
     if (handling === 'block') return createBlockedResponse(sm.responseHeaders);
 
     return undefined;
@@ -140,7 +150,7 @@ export function withStealthMark<Req extends NextLikeRequest = NextLikeRequest>(
       scheduleUsageFlush(sm, event);
     }
 
-    if (handling === 'manifest') return createAgentResponse(sm.manifestJson, sm.responseHeaders, detection);
+    if (handling === 'manifest') return createAgentResponse(sm.manifestJson, sm.responseHeaders, detection, !MANIFEST_PATHS.has(pathname));
     if (handling === 'block') return createBlockedResponse(sm.responseHeaders);
 
     // Observe: the site answers normally; agents only get tagged
@@ -218,20 +228,33 @@ function applyDetectionHeaders(response: Response, detection: DetectionResult): 
 function createBlockedResponse(headers: Record<string, string>): Response {
   const response = new Response(
     JSON.stringify({ error: 'agent_blocked', message: 'This site does not accept automated agent traffic.' }),
-    { status: 403, headers: { 'content-type': 'application/json; charset=utf-8' } }
+    {
+      status: 403,
+      headers: {
+        'content-type': 'application/json; charset=utf-8',
+        'cache-control': NEGOTIATED_CACHE_CONTROL,
+        vary: NEGOTIATED_VARY,
+      },
+    }
   );
   applyHeaders(response, headers);
   return response;
 }
 
-function createAgentResponse(manifestJson: string, headers: Record<string, string>, detection: DetectionResult): Response {
+function createAgentResponse(
+  manifestJson: string,
+  headers: Record<string, string>,
+  detection: DetectionResult,
+  negotiated: boolean
+): Response {
   const response = new Response(manifestJson, {
     status: 200,
     headers: {
       'content-type': 'application/agent+json; charset=utf-8',
       'access-control-allow-origin': '*',
       'access-control-allow-headers': '*',
-      'cache-control': 'public, max-age=60, s-maxage=300',
+      'cache-control': negotiated ? NEGOTIATED_CACHE_CONTROL : MANIFEST_CACHE_CONTROL,
+      ...(negotiated ? { vary: NEGOTIATED_VARY } : {}),
       'x-stealthmark-route': 'DUAL_DOOR_AGENT_FASTPATH',
       ...headers,
     },

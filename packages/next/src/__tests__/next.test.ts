@@ -433,3 +433,75 @@ describe('withStealthMark typing', () => {
     expect(response && (await response.text())).toBe('ok');
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════
+// Caching of content-negotiated responses
+// ═══════════════════════════════════════════════════════════════════
+
+describe('cache headers of negotiated responses', () => {
+  const FIXED_MANIFEST_CACHE = 'public, max-age=60, s-maxage=300';
+  const VARY = 'accept, user-agent, x-stealthmark-agent';
+
+  function request(pathname: string, headers: Record<string, string>): { headers: Headers; nextUrl: { pathname: string }; method: string } {
+    return { headers: new Headers(headers), nextUrl: { pathname }, method: 'GET' };
+  }
+
+  const agentUa = { 'user-agent': 'Mozilla/5.0 GPTBot/1.0', accept: 'text/html' };
+
+  it('keeps the shared-cache policy on the fixed manifest paths, where the body is the same for every caller', () => {
+    const mw = stealthmark({ siteName: 'Cache Site' });
+    for (const path of ['/.well-known/agent.json', '/.well-known/ai-plugin.json', '/api/agent-manifest']) {
+      const response = expectResponse(mw(request(path, { accept: 'text/html' })));
+      expect(response.headers.get('cache-control')).toBe(FIXED_MANIFEST_CACHE);
+      expect(response.headers.get('vary')).toBeNull();
+    }
+  });
+
+  it('does not let a shared cache store a manifest served on an ordinary path for Accept: application/agent+json', () => {
+    const mw = stealthmark({ siteName: 'Cache Site' });
+    const response = expectResponse(mw(request('/pricing', { ...agentUa, accept: 'application/agent+json' })));
+    expect(response.status).toBe(200);
+    expect(response.headers.get('cache-control')).toBe('private, no-store');
+    expect(response.headers.get('vary')).toBe(VARY);
+    expect(response.headers.get('cache-control')).not.toContain('s-maxage');
+  });
+
+  it('marks the manifest that agentPolicy "manifest" serves on an ordinary path as private and varying', () => {
+    const mw = stealthmark({ siteName: 'Cache Site', agentPolicy: 'manifest' });
+    const response = expectResponse(mw(request('/', agentUa)));
+    expect(response.headers.get('content-type')).toContain('application/agent+json');
+    expect(response.headers.get('cache-control')).toBe('private, no-store');
+    expect(response.headers.get('vary')).toBe(VARY);
+  });
+
+  it('marks the agentPolicy "block" 403 as private and varying', () => {
+    const mw = stealthmark({ siteName: 'Cache Site', agentPolicy: 'block' });
+    const response = expectResponse(mw(request('/', agentUa)));
+    expect(response.status).toBe(403);
+    expect(response.headers.get('cache-control')).toBe('private, no-store');
+    expect(response.headers.get('vary')).toBe(VARY);
+  });
+
+  it('withStealthMark applies the same rules', async () => {
+    const manifestPolicy = withStealthMark(() => new Response('page'), { siteName: 'Cache Site', agentPolicy: 'manifest' });
+    const negotiated = expectResponse(await manifestPolicy(request('/pricing', agentUa)));
+    expect(negotiated.headers.get('cache-control')).toBe('private, no-store');
+    expect(negotiated.headers.get('vary')).toBe(VARY);
+
+    const fixed = expectResponse(await manifestPolicy(request('/.well-known/agent.json', agentUa)));
+    expect(fixed.headers.get('cache-control')).toBe(FIXED_MANIFEST_CACHE);
+    expect(fixed.headers.get('vary')).toBeNull();
+
+    const blocking = withStealthMark(() => new Response('page'), { siteName: 'Cache Site', agentPolicy: 'block' });
+    const blocked = expectResponse(await blocking(request('/', agentUa)));
+    expect(blocked.status).toBe(403);
+    expect(blocked.headers.get('vary')).toBe(VARY);
+  });
+
+  it('leaves the response of the host app alone in observe mode', async () => {
+    const mw = withStealthMark(() => new Response('page', { headers: { 'cache-control': 'public, max-age=3600' } }), { siteName: 'Cache Site' });
+    const response = expectResponse(await mw(request('/', agentUa)));
+    expect(response.headers.get('cache-control')).toBe('public, max-age=3600');
+    expect(response.headers.get('vary')).toBeNull();
+  });
+});
