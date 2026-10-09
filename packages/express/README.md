@@ -6,21 +6,7 @@ Express and Fastify middleware that detects AI agents that identify themselves, 
 
 Part of the [StealthMark](https://stealthmark.io) SDK.
 
-> **Status:** v0.1.0, not published to npm yet. The `npm install` and `npx` commands below will work once it is published; until then build from source as described in the [repository README](https://github.com/Gastonchevarria/stealthmark-sdk#status).
-
-## Installation from source
-
-Until the first npm release, build the repository and install the tarballs (`@stealthmark/express` depends on `@stealthmark/core`):
-
-```bash
-# in a clone of the repository
-npm install && npm run build
-npm pack -w @stealthmark/core -w @stealthmark/express
-# in your project
-npm install /path/to/stealthmark-core-0.1.0.tgz /path/to/stealthmark-express-0.1.0.tgz
-```
-
-## Installation (after the first npm release)
+## Installation
 
 ```bash
 npm install @stealthmark/express @stealthmark/core

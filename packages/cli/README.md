@@ -6,22 +6,7 @@ Command-line tool that scaffolds StealthMark middleware and checks a site for a 
 
 Part of the [StealthMark](https://stealthmark.io) SDK.
 
-> **Status:** v0.1.0, not published to npm yet. The `npm install` and `npx` commands below will work once it is published; until then build from source as described in the [repository README](https://github.com/Gastonchevarria/stealthmark-sdk#status).
-
-## Usage from source
-
-Until the first npm release, run the CLI from a built clone of the repository:
-
-```bash
-# in a clone of the repository
-npm install && npm run build
-
-# then, in your project
-node /path/to/stealthmark-sdk/packages/cli/dist/bin.js init
-node /path/to/stealthmark-sdk/packages/cli/dist/bin.js verify https://your-site.example
-```
-
-## Installation (after the first npm release)
+## Installation
 
 Run directly without installing via `npx`:
 

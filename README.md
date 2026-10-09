@@ -1,6 +1,7 @@
 # StealthMark SDK
 
 [![CI](https://github.com/Gastonchevarria/stealthmark-sdk/actions/workflows/ci.yml/badge.svg)](https://github.com/Gastonchevarria/stealthmark-sdk/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/@stealthmark/core.svg?label=npm)](https://www.npmjs.com/package/@stealthmark/core)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](./LICENSE)
 [![Node.js >=20](https://img.shields.io/badge/node-%3E%3D20-339933.svg)](https://nodejs.org)
 [![TypeScript strict](https://img.shields.io/badge/TypeScript-strict-3178c6.svg)](./packages/core/tsconfig.json)
@@ -52,9 +53,15 @@ Requires Node.js 20 or newer.
 
 ## Status
 
-> Packages will be published to npm as `@stealthmark/core`, `@stealthmark/next`, `@stealthmark/express` and `@stealthmark/cli`. To be notified, watch this repository and choose **Custom → Releases**.
+v0.1.0 is published to npm with [provenance](https://docs.npmjs.com/generating-provenance-statements): [`@stealthmark/core`](https://www.npmjs.com/package/@stealthmark/core), [`@stealthmark/next`](https://www.npmjs.com/package/@stealthmark/next), [`@stealthmark/express`](https://www.npmjs.com/package/@stealthmark/express) and [`@stealthmark/cli`](https://www.npmjs.com/package/@stealthmark/cli). To be notified of new versions, watch this repository and choose **Custom → Releases**.
 
-v0.1.0. **The packages are not published to npm yet**, so `npm install @stealthmark/...` does not work today. Install from source:
+```bash
+npm install @stealthmark/next @stealthmark/core      # Next.js
+npm install @stealthmark/express @stealthmark/core   # Express or Fastify
+npx @stealthmark/cli init
+```
+
+To build from source instead:
 
 ```bash
 git clone https://github.com/Gastonchevarria/stealthmark-sdk.git
@@ -62,18 +69,6 @@ cd stealthmark-sdk
 npm install
 npm run build
 ```
-
-To use the packages in another project, pack them into tarballs and install the tarballs (`@stealthmark/next`, `@stealthmark/express` and `@stealthmark/cli` all depend on `@stealthmark/core`, so install core together with the adapter you need):
-
-```bash
-npm pack -w @stealthmark/core -w @stealthmark/next -w @stealthmark/express -w @stealthmark/cli
-# in your project (core is required by next, express and cli):
-npm install /path/to/stealthmark-core-0.1.0.tgz /path/to/stealthmark-next-0.1.0.tgz
-# for Express or Fastify, install the express tarball instead of the next one:
-# npm install /path/to/stealthmark-core-0.1.0.tgz /path/to/stealthmark-express-0.1.0.tgz
-```
-
-`npx @stealthmark/cli` and `npm install -g @stealthmark/cli` work only after the first npm release. Until then, run the CLI from a built clone with `node /path/to/stealthmark-sdk/packages/cli/dist/bin.js init` (or `verify https://your-site.example`).
 
 Development commands, all run from the repository root:
 
@@ -135,7 +130,7 @@ Under `manifest` policy, Express and Fastify answer the manifest only on `/`, wh
 
 ## CLI
 
-Both commands are non-interactive: there are no prompts. From a clone, replace `stealthmark` below with `node /path/to/stealthmark-sdk/packages/cli/dist/bin.js`; after the first npm release, `npx @stealthmark/cli` does the same.
+Both commands are non-interactive: there are no prompts. Run them with `npx @stealthmark/cli`, or install the CLI globally with `npm install -g @stealthmark/cli` and use `stealthmark`.
 
 `stealthmark init --name "My Site" --force` (both flags optional) writes one starter file in the current directory and prints the remaining steps. It does not install packages or touch any other file.
 
