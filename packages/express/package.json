@@ -1,6 +1,6 @@
 {
   "name": "@stealthmark/express",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Express and Fastify middleware that detects self-identified AI agents, serves an agent manifest and meters agent traffic",
   "license": "Apache-2.0",
   "type": "module",
@@ -10,7 +10,8 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
     }
   },
   "files": [

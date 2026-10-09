@@ -14,7 +14,7 @@ The manifest is StealthMark's own format. It is not an A2A Agent Card, an MCP se
 npm install @stealthmark/core
 ```
 
-Requires Node.js 20 or newer.
+Requires Node.js 20 or newer. The package is ESM; CommonJS projects can also `require()` it on Node.js 20.19+ or 22.12+.
 
 ## Quick Start
 

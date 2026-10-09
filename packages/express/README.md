@@ -12,7 +12,7 @@ Part of the [StealthMark](https://stealthmark.io) SDK.
 npm install @stealthmark/express @stealthmark/core
 ```
 
-Requires Node.js 20 or newer.
+Requires Node.js 20 or newer. The package is ESM; CommonJS projects can also `require()` it on Node.js 20.19+ or 22.12+.
 
 ## Express Quickstart
 

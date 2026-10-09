@@ -14,7 +14,7 @@ The manifest is StealthMark's own format. It is not an A2A Agent Card, an MCP se
 npm install @stealthmark/next @stealthmark/core
 ```
 
-Requires Node.js 20 or newer. The Next.js peer range is 15 or newer; the repository's own development dependency is Next.js 16.
+Requires Node.js 20 or newer. The package is ESM; CommonJS projects can also `require()` it on Node.js 20.19+ or 22.12+. The Next.js peer range is 15 or newer; the repository's own development dependency is Next.js 16.
 
 ## Quick Start
 
