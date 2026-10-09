@@ -60,7 +60,7 @@ npx @stealthmark/cli init --name "My SaaS API"
 npx @stealthmark/cli init --force
 ```
 
-### `stealthmark verify <url>`
+### `stealthmark verify https://your-site.example`
 Checks whether a site serves a StealthMark agent manifest. Three checks: `/.well-known/agent.json` returns 200 JSON with `name`, `protocol` and a `capabilities` array; `/` answers `Accept: application/agent+json` with content type `application/agent+json`; the response carries the `x-stealthmark-shield` marker header. It does not validate the schema and does not prove that agents are detected or metered. A site that serves its own manifest without StealthMark fails the third check. The URL is required.
 
 ```bash

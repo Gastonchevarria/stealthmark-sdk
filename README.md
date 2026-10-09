@@ -46,11 +46,13 @@ incoming request
 | `@stealthmark/core` | [`packages/core`](./packages/core) | Framework-agnostic engine: agent detection, manifest generation, usage metering |
 | `@stealthmark/next` | [`packages/next`](./packages/next) | Next.js middleware (`withStealthMark`, `stealthmark`) |
 | `@stealthmark/express` | [`packages/express`](./packages/express) | Express and Fastify middleware |
-| `@stealthmark/cli` | [`packages/cli`](./packages/cli) | `stealthmark init` writes a starter middleware file, `stealthmark verify <url>` checks a live site |
+| `@stealthmark/cli` | [`packages/cli`](./packages/cli) | `stealthmark init` writes a starter middleware file, `stealthmark verify https://your-site.example` checks a live site |
 
 Requires Node.js 20 or newer.
 
 ## Status
+
+> Packages will be published to npm as `@stealthmark/core`, `@stealthmark/next`, `@stealthmark/express` and `@stealthmark/cli`. To be notified, watch this repository and choose **Custom → Releases**.
 
 v0.1.0. **The packages are not published to npm yet**, so `npm install @stealthmark/...` does not work today. Install from source:
 
@@ -71,7 +73,7 @@ npm install /path/to/stealthmark-core-0.1.0.tgz /path/to/stealthmark-next-0.1.0.
 # npm install /path/to/stealthmark-core-0.1.0.tgz /path/to/stealthmark-express-0.1.0.tgz
 ```
 
-`npx @stealthmark/cli` and `npm install -g @stealthmark/cli` work only after the first npm release. Until then, run the CLI from a built clone with `node /path/to/stealthmark-sdk/packages/cli/dist/bin.js <command>`.
+`npx @stealthmark/cli` and `npm install -g @stealthmark/cli` work only after the first npm release. Until then, run the CLI from a built clone with `node /path/to/stealthmark-sdk/packages/cli/dist/bin.js init` (or `verify https://your-site.example`).
 
 Development commands, all run from the repository root:
 
@@ -106,18 +108,43 @@ In `observe` mode your page content is not changed. What differs is response hea
 
 The manifest is StealthMark's own format. It is not an A2A Agent Card, an MCP server manifest or an adopted standard.
 
+## Express and Fastify quick start
+
+```typescript
+import express from 'express';
+import { stealthmark } from '@stealthmark/express';
+
+const app = express();
+app.use(stealthmark({
+  siteName: 'My Express API',
+  agentPolicy: 'observe', // reads STEALTHMARK_API_KEY from the environment when set
+}));
+app.listen(3000);
+```
+
+```typescript
+import Fastify from 'fastify';
+import { stealthmarkFastify } from '@stealthmark/express';
+
+const fastify = Fastify();
+fastify.addHook('preHandler', stealthmarkFastify({ siteName: 'My Fastify Service' }));
+fastify.listen({ port: 3000 });
+```
+
+Under `manifest` policy, Express and Fastify answer the manifest only on `/`, while Next.js answers it on every path.
+
 ## CLI
 
 Both commands are non-interactive: there are no prompts. From a clone, replace `stealthmark` below with `node /path/to/stealthmark-sdk/packages/cli/dist/bin.js`; after the first npm release, `npx @stealthmark/cli` does the same.
 
-`stealthmark init [--name <siteName>] [--force]` writes one starter file in the current directory and prints the remaining steps. It does not install packages or touch any other file.
+`stealthmark init --name "My Site" --force` (both flags optional) writes one starter file in the current directory and prints the remaining steps. It does not install packages or touch any other file.
 
 - Framework: Next.js, Express or Fastify, read from the `dependencies` and `devDependencies` of `package.json` (first match in that order), or from a `next.config.*` file. Nothing detected: nothing is written and the exit code is 1.
 - File: Next.js gets `middleware.ts` (`src/middleware.ts` if a `src/` directory exists) using the minimal `stealthmark()` middleware; Express and Fastify get `stealthmark.middleware.ts`.
 - `capabilities`: for Next.js, the `app/api/**/route.ts` handlers it finds; for Express and Fastify an empty list that you fill in.
 - `--name` sets `siteName` (default: the `name` in `package.json`, else `My App`). `--force` overwrites an existing file; without it, an existing file is left alone and the exit code is 1.
 
-`stealthmark verify <url>` checks that a live site serves a StealthMark manifest on `/.well-known/agent.json`, answers `Accept: application/agent+json` on `/`, and sends the `x-stealthmark-shield` header. The URL is required. See [`packages/cli`](./packages/cli) for details.
+`stealthmark verify https://your-site.example` checks that a live site serves a StealthMark manifest on `/.well-known/agent.json`, answers `Accept: application/agent+json` on `/`, and sends the `x-stealthmark-shield` header. The URL is required. See [`packages/cli`](./packages/cli) for details.
 
 ## What it detects, and what it does not
 
@@ -135,7 +162,7 @@ It does **not** detect stealth bots. A scraper or agent that sends a browser Use
 
 Only when an API key is configured (`apiKey` option or `STEALTHMARK_API_KEY`). Without a key the SDK makes no network calls. Requests not identified as agents are never reported.
 
-- Usage events (`POST /v1/usage/ingest`, sent with `Authorization: Bearer <apiKey>`): event type, agent identifier, request path, method, host and timestamp. When no better identifier exists, the agent identifier is the request's `User-Agent`. Set `reportUsage: false` to turn this off. Events are reported best-effort and can be dropped.
+- Usage events (`POST /v1/usage/ingest`, sent with `Authorization: Bearer $STEALTHMARK_API_KEY`): event type, agent identifier, request path, method, host and timestamp. When no better identifier exists, the agent identifier is the request's `User-Agent`. Set `reportUsage: false` to turn this off. Events are reported best-effort and can be dropped.
 
 The default host is https://stealthmark-api-cifepjj5ca-uc.a.run.app, the StealthMark hosted API. Override it with `usageEndpoint` or `STEALTHMARK_USAGE_ENDPOINT`.
 

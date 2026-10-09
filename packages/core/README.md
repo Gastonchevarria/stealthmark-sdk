@@ -127,7 +127,7 @@ usage.record({ event_type: 'agent_request' });
 
 Only when an API key is configured (`apiKey` option or `STEALTHMARK_API_KEY`). Without a key the SDK makes no network calls. Requests not identified as agents are never reported.
 
-- Usage events (`POST /v1/usage/ingest`, sent with `Authorization: Bearer <apiKey>`): event type, agent identifier, request path, method, host and timestamp. When no better identifier exists, the agent identifier is the request's `User-Agent`. Set `reportUsage: false` to turn this off.
+- Usage events (`POST /v1/usage/ingest`, sent with `Authorization: Bearer $STEALTHMARK_API_KEY`): event type, agent identifier, request path, method, host and timestamp. When no better identifier exists, the agent identifier is the request's `User-Agent`. Set `reportUsage: false` to turn this off.
 
 The default host is https://stealthmark-api-cifepjj5ca-uc.a.run.app, the StealthMark hosted API. Override it with `usageEndpoint` or `STEALTHMARK_USAGE_ENDPOINT`.
 
