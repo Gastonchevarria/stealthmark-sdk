@@ -1,10 +1,42 @@
 # StealthMark SDK
 
+[![CI](https://github.com/Gastonchevarria/stealthmark-sdk/actions/workflows/ci.yml/badge.svg)](https://github.com/Gastonchevarria/stealthmark-sdk/actions/workflows/ci.yml)
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](./LICENSE)
+[![Node.js >=20](https://img.shields.io/badge/node-%3E%3D20-339933.svg)](https://nodejs.org)
+[![TypeScript strict](https://img.shields.io/badge/TypeScript-strict-3178c6.svg)](./packages/core/tsconfig.json)
+
 Open-source (Apache-2.0) SDK that lets a website tell which requests come from AI agents that identify themselves, serve them a structured agent manifest or leave the page untouched, and meter that traffic.
 It ships as framework-agnostic core logic plus adapters for Next.js, Express and Fastify, and a CLI that scaffolds a starter middleware file and checks a site for a StealthMark agent manifest.
 The hosted dashboard and billing at [stealthmark.io](https://stealthmark.io) are optional and are not part of this repository.
 
 > Detects only agents that identify themselves. It does not detect stealth bots and is not a security control.
+
+## How a request is handled
+
+```text
+incoming request
+ |
+ +- /.well-known/agent.json, /.well-known/ai-plugin.json or /api/agent-manifest
+ |    -> 200 agent manifest, for any caller
+ |
+ +- no agent signal (browsers and every client that does not identify itself)
+ |    -> your app answers normally, plus the x-stealthmark-shield and
+ |       x-stealthmark-agent-policy headers; not metered
+ |
+ +- agent signal: Accept: application/agent+json, x-stealthmark-agent header
+    or a known AI User-Agent. Always metered, then by agentPolicy:
+      +- Accept: application/agent+json   -> 200 agent manifest (any policy)
+      +- observe (default)                -> your app answers normally, tagged
+      |                                      x-stealthmark-agent-detected
+      +- manifest                         -> 200 agent manifest (Next.js: every path;
+      |                                      Express/Fastify: "/" only, other paths
+      |                                      answer normally like observe)
+      +- block                            -> 403 JSON {"error":"agent_blocked"}
+```
+
+- "Metered" means the event is queued. It leaves your server only when an API key is configured, in batches in the background, and can be dropped. The 403 is metered as `agent_blocked` and manifest hits as `agent_manifest`.
+- Detection runs on every request and inspects the request headers and path. That is cheap but not free: the SDK adds a small per-request cost on all traffic, and no latency figure is published here.
+- Next.js: `withStealthMark` adds the headers to the response of your own middleware. The minimal `stealthmark()` returns nothing for requests it passes through, so it adds no headers to them.
 
 ## Packages
 
@@ -38,7 +70,7 @@ npm install /path/to/stealthmark-core-0.1.0.tgz /path/to/stealthmark-next-0.1.0.
 # npm install /path/to/stealthmark-core-0.1.0.tgz /path/to/stealthmark-express-0.1.0.tgz
 ```
 
-The CLI can be run from a clone with `node /path/to/stealthmark-sdk/packages/cli/dist/bin.js init`.
+`npx @stealthmark/cli` and `npm install -g @stealthmark/cli` work only after the first npm release. Until then, run the CLI from a built clone with `node /path/to/stealthmark-sdk/packages/cli/dist/bin.js <command>`.
 
 Development commands, all run from the repository root:
 
@@ -73,6 +105,19 @@ In `observe` mode the site responds exactly as before. Requests identified as co
 
 The manifest is StealthMark's own format. It is not an A2A Agent Card, an MCP server manifest or an adopted standard.
 
+## CLI
+
+Both commands are non-interactive: there are no prompts. From a clone, replace `stealthmark` below with `node /path/to/stealthmark-sdk/packages/cli/dist/bin.js`; after the first npm release, `npx @stealthmark/cli` does the same.
+
+`stealthmark init [--name <siteName>] [--force]` writes one starter file in the current directory and prints the remaining steps. It does not install packages or touch any other file.
+
+- Framework: Next.js, Express or Fastify, read from the `dependencies` and `devDependencies` of `package.json` (first match in that order), or from a `next.config.*` file. Nothing detected: nothing is written and the exit code is 1.
+- File: Next.js gets `middleware.ts` (`src/middleware.ts` if a `src/` directory exists) using the minimal `stealthmark()` middleware; Express and Fastify get `stealthmark.middleware.ts`.
+- `capabilities`: for Next.js, the `app/api/**/route.ts` handlers it finds; for Express and Fastify an empty list that you fill in.
+- `--name` sets `siteName` (default: the `name` in `package.json`, else `My App`). `--force` overwrites an existing file; without it, an existing file is left alone and the exit code is 1.
+
+`stealthmark verify <url>` checks that a live site serves a StealthMark manifest on `/.well-known/agent.json`, answers `Accept: application/agent+json` on `/`, and sends the `x-stealthmark-shield` header. The URL is required. See [`packages/cli`](./packages/cli) for details.
+
 ## What it detects, and what it does not
 
 It detects agents that **identify themselves**, through any of:
@@ -98,6 +143,7 @@ The default host is https://stealthmark-api-cifepjj5ca-uc.a.run.app, the Stealth
 - Website: https://stealthmark.io
 - Documentation: https://stealthmark.io/docs
 - Security reports: see [SECURITY.md](./SECURITY.md)
+- Maintainers: release steps in [RELEASING.md](./RELEASING.md)
 
 ## License
 
