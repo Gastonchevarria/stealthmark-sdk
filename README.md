@@ -53,7 +53,7 @@ Requires Node.js 20 or newer.
 
 ## Status
 
-v0.1.0 is published to npm with [provenance](https://docs.npmjs.com/generating-provenance-statements): [`@stealthmark/core`](https://www.npmjs.com/package/@stealthmark/core), [`@stealthmark/next`](https://www.npmjs.com/package/@stealthmark/next), [`@stealthmark/express`](https://www.npmjs.com/package/@stealthmark/express) and [`@stealthmark/cli`](https://www.npmjs.com/package/@stealthmark/cli). To be notified of new versions, watch this repository and choose **Custom → Releases**.
+The packages are published to npm with [provenance](https://docs.npmjs.com/generating-provenance-statements): [`@stealthmark/core`](https://www.npmjs.com/package/@stealthmark/core), [`@stealthmark/next`](https://www.npmjs.com/package/@stealthmark/next), [`@stealthmark/express`](https://www.npmjs.com/package/@stealthmark/express) and [`@stealthmark/cli`](https://www.npmjs.com/package/@stealthmark/cli). To be notified of new versions, watch this repository and choose **Custom → Releases**.
 
 ```bash
 npm install @stealthmark/next @stealthmark/core      # Next.js

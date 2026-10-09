@@ -8,7 +8,7 @@
 import { runInit } from './commands/init.js';
 import { runVerify } from './commands/verify.js';
 
-const VERSION = '0.1.0';
+const VERSION = '0.1.1';
 
 function printHelp() {
   console.log(`

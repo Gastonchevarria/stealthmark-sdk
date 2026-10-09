@@ -18,4 +18,4 @@ This repository contains the open-source SDK packages: `@stealthmark/core`, `@st
 
 ## Supported versions
 
-The SDK is at v0.1.0 and has not been published to npm yet. Only the latest commit on `main` is supported.
+The SDK is published to npm. Only the latest published version and the latest commit on `main` are supported.
