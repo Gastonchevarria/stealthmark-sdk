@@ -99,7 +99,7 @@ export default withStealthMark(() => NextResponse.next(), {
 });
 ```
 
-What is sent, and where, is listed in the [repository README](https://github.com/Gastonchevarria/stealthmark-sdk#data-sent-to-stealthmark-cloud). The default host is https://stealthmark-api-cifepjj5ca-uc.a.run.app; override it with `usageEndpoint` or `STEALTHMARK_USAGE_ENDPOINT`. Identification is self-declared, and events are reported best-effort and can be dropped.
+What is sent, and where, is listed under "Data sent to StealthMark Cloud" in the `@stealthmark/core` README (`node_modules/@stealthmark/core/README.md`). The default host is https://stealthmark-api-cifepjj5ca-uc.a.run.app; override it with `usageEndpoint` or `STEALTHMARK_USAGE_ENDPOINT`. Identification is self-declared, and events are reported best-effort and can be dropped.
 
 ### Several sites, one API key
 
