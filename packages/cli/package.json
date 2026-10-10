@@ -1,6 +1,6 @@
 {
   "name": "@stealthmark/cli",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "CLI that scaffolds StealthMark middleware for Next.js, Express and Fastify and checks whether a site serves a StealthMark agent manifest",
   "license": "Apache-2.0",
   "type": "module",
@@ -39,7 +39,7 @@
   },
   "author": "Gaston Chevarria <gaston_ch27@hotmail.com>",
   "dependencies": {
-    "@stealthmark/core": "^0.1.0"
+    "@stealthmark/core": "^0.1.3"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

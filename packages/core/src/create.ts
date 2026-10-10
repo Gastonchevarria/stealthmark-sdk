@@ -102,6 +102,7 @@ export function createStealthMark(config: StealthMarkConfig): StealthMarkInstanc
     apiKey: config.reportUsage === false ? '' : (usageApiKey ?? ''),
     endpoint: config.usageEndpoint ?? readEnv('STEALTHMARK_USAGE_ENDPOINT'),
     onQuotaExceeded: config.onQuotaExceeded,
+    logger: config.logger,
   });
 
   const responseHeaders: Record<string, string> = {

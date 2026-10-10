@@ -24,6 +24,7 @@ export type {
   UsageReporterOptions,
   UsageStats,
   QuotaExceededInfo,
+  UsageLogger,
   AgentPolicy,
 } from './types.js';
 

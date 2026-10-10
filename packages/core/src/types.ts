@@ -66,6 +66,8 @@ export interface StealthMarkConfig {
   reportUsage?: boolean;
   /** Called when the usage API answers 429 quota_exceeded and reporting pauses. See `UsageReporterOptions`. */
   onQuotaExceeded?: (info: QuotaExceededInfo) => void;
+  /** Where usage reporting warnings go (default `console`; `false` silences them). See `UsageReporterOptions`. */
+  logger?: UsageLogger | false;
   /** Custom agent detection patterns (User-Agent substrings) */
   agentPatterns?: string[];
   /** Handling of agent requests on ordinary paths (default 'observe') */
@@ -133,6 +135,17 @@ export interface UsageReporterOptions {
    * Errors thrown by the callback are swallowed.
    */
   onQuotaExceeded?: (info: QuotaExceededInfo) => void;
+  /**
+   * Receives one warning per problem kind (an API key that cannot be sent in a header, a key the API
+   * rejects, an unreachable API), so a misconfigured site does not fail silently. Warnings never
+   * contain the key. Default: `console`. Pass `false` to silence them.
+   */
+  logger?: UsageLogger | false;
+}
+
+/** Minimal logger for usage reporter warnings */
+export interface UsageLogger {
+  warn: (message: string) => void;
 }
 
 /** Details passed to `onQuotaExceeded` */

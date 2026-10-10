@@ -434,3 +434,120 @@ describe('createStealthMark usage wiring', () => {
     expect(sm.usage.active).toBe(false);
   });
 });
+
+describe('usage reporter warnings', () => {
+  let fetchMock: ReturnType<typeof vi.fn>;
+  let warnings: string[];
+  const logger = { warn: (message: string) => warnings.push(message) };
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    warnings = [];
+    fetchMock = vi.fn(async () => jsonResponse(200, { accepted: 1, rejected: 0 }));
+    vi.stubGlobal('fetch', fetchMock);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  it('trims whitespace around the key before sending it', async () => {
+    const reporter = createUsageReporter({ apiKey: '  sk_live_test\n', logger });
+    reporter.record({ agent_identifier: 'GPTBot' });
+    await reporter.flush();
+
+    const [, init] = fetchMock.mock.calls[0] as [string, { headers: Record<string, string> }];
+    expect(init.headers.authorization).toBe('Bearer sk_live_test');
+    expect(warnings).toEqual([]);
+  });
+
+  it('turns reporting off and warns once, without the key, when the key has control characters', async () => {
+    const reporter = createUsageReporter({ apiKey: 'sk_live_test\u001b[C', logger });
+    reporter.record({ agent_identifier: 'GPTBot' });
+    await reporter.flush();
+
+    expect(reporter.active).toBe(false);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain('cannot be sent in an HTTP header');
+    expect(warnings[0]).not.toContain('sk_live_test');
+  });
+
+  it('warns once when the API rejects the key, however many batches fail', async () => {
+    fetchMock.mockImplementation(async () => jsonResponse(401, { error: 'invalid_api_key' }));
+    const reporter = createUsageReporter({ apiKey: 'sk_live_revoked', logger });
+    for (let i = 0; i < 3; i += 1) {
+      reporter.record({ agent_identifier: 'GPTBot' });
+      await reporter.flush();
+    }
+
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain('HTTP 401');
+    expect(warnings[0]).not.toContain('sk_live_revoked');
+    expect(reporter.stats().dropped).toBe(3);
+  });
+
+  it('warns once with only the error name when the API cannot be reached', async () => {
+    fetchMock.mockImplementation(async () => {
+      throw new TypeError('Headers.append: "Bearer sk_live_secret" is an invalid header value.');
+    });
+    const reporter = createUsageReporter({ apiKey: 'sk_live_secret', logger });
+    reporter.record({ agent_identifier: 'GPTBot' });
+    const flushed = reporter.flush();
+    await vi.runAllTimersAsync();
+    await flushed;
+
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain('(last: TypeError)');
+    expect(warnings[0]).not.toContain('sk_live_secret');
+  });
+
+  it('names the last HTTP status when the API keeps answering 5xx', async () => {
+    fetchMock.mockImplementation(async () => jsonResponse(503, { error: 'service_unavailable' }));
+    const reporter = createUsageReporter({ apiKey: 'sk_live_test', logger });
+    reporter.record({ agent_identifier: 'GPTBot' });
+    const flushed = reporter.flush();
+    await vi.runAllTimersAsync();
+    await flushed;
+
+    expect(warnings).toEqual([expect.stringContaining('(last: HTTP 503)')]);
+  });
+
+  it('warns once for other 4xx answers with the status', async () => {
+    fetchMock.mockImplementation(async () => jsonResponse(422, { error: 'invalid_event' }));
+    const reporter = createUsageReporter({ apiKey: 'sk_live_test', logger });
+    reporter.record({ agent_identifier: 'GPTBot' });
+    await reporter.flush();
+    reporter.record({ agent_identifier: 'GPTBot' });
+    await reporter.flush();
+
+    expect(warnings).toEqual([expect.stringContaining('HTTP 422')]);
+  });
+
+  it('stays silent when the logger is false', async () => {
+    const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const reporter = createUsageReporter({ apiKey: 'bad key', logger: false });
+
+    expect(reporter.active).toBe(false);
+    expect(consoleWarn).not.toHaveBeenCalled();
+    consoleWarn.mockRestore();
+  });
+
+  it('keeps reporting when the logger itself throws', async () => {
+    fetchMock.mockImplementation(async () => jsonResponse(401, { error: 'invalid_api_key' }));
+    const throwing = { warn: () => { throw new Error('logger down'); } };
+    const reporter = createUsageReporter({ apiKey: 'sk_live_test', logger: throwing });
+    reporter.record({ agent_identifier: 'GPTBot' });
+
+    await expect(reporter.flush()).resolves.toBeUndefined();
+    expect(reporter.stats().dropped).toBe(1);
+  });
+
+  it('accepts the logger through createStealthMark, which every adapter uses', async () => {
+    const sm = createStealthMark({ siteName: 'Test', apiKey: 'sk_live_test\u001b[C', logger });
+
+    expect(sm.usage.active).toBe(false);
+    expect(warnings).toEqual([expect.stringContaining('cannot be sent in an HTTP header')]);
+  });
+});

@@ -7,6 +7,7 @@
 import type {
   DetectionResult,
   UsageEvent,
+  UsageLogger,
   UsageReporterOptions,
   UsageStats,
 } from './types.js';
@@ -77,6 +78,22 @@ function requestSignal(): AbortSignal | undefined {
     : undefined;
 }
 
+/** Printable ASCII without spaces: the only characters an API key can carry in an HTTP header. */
+const API_KEY_PATTERN = /^[\x21-\x7e]+$/;
+
+type ApiKeyCheck = { kind: 'missing' } | { kind: 'valid'; key: string } | { kind: 'invalid'; length: number };
+
+/**
+ * Trims surrounding whitespace (a key pasted with a trailing newline) and rejects keys with control
+ * or non-ASCII characters (a key typed with an arrow key in a terminal), which would make every
+ * request fail before it leaves the process.
+ */
+export function checkApiKey(apiKey: string | undefined): ApiKeyCheck {
+  const key = (apiKey ?? '').trim();
+  if (key === '') return { kind: 'missing' };
+  return API_KEY_PATTERN.test(key) ? { kind: 'valid', key } : { kind: 'invalid', length: key.length };
+}
+
 function normalizeEvent(event: UsageEvent): UsageEvent {
   const isBlocked = event.event_type === 'agent_blocked';
   const minUnits = isBlocked ? 0 : 1;
@@ -114,11 +131,31 @@ export function resolveAgentIdentifier(
  * `retry_after_seconds`, dropping events meanwhile (counted in `stats().dropped`, with the resume time in
  * `stats().pausedUntil`). `onQuotaExceeded` lets the host app surface the pause. Any other 429 is a plain rate limit:
  * the batch is kept and sent again after the server's Retry-After, without reporting a quota pause.
- * Without an API key it is inert.
+ * Without an API key it is inert. A key that cannot be sent in a header, a key the API rejects and an
+ * unreachable API each produce one warning through `options.logger` (default `console`).
  */
 export function createUsageReporter(options: UsageReporterOptions): UsageReporter {
-  const apiKey = options.apiKey;
-  const active = Boolean(apiKey);
+  const logger: UsageLogger | null = options.logger === false ? null : (options.logger ?? console);
+  const warned = new Set<string>();
+  function warnOnce(kind: string, message: string): void {
+    if (logger === null || warned.has(kind)) return;
+    warned.add(kind);
+    try {
+      logger.warn(`[stealthmark] ${message}`);
+    } catch {
+      // A failing logger must never break reporting.
+    }
+  }
+
+  const keyCheck = checkApiKey(options.apiKey);
+  if (keyCheck.kind === 'invalid') {
+    warnOnce(
+      'invalid-key',
+      `The API key (${keyCheck.length} characters) contains spaces, control or non-ASCII characters, so it cannot be sent in an HTTP header. Usage reporting is off. Set STEALTHMARK_API_KEY again without extra characters.`
+    );
+  }
+  const apiKey = keyCheck.kind === 'valid' ? keyCheck.key : '';
+  const active = apiKey !== '';
   const url = `${(options.endpoint ?? DEFAULT_USAGE_ENDPOINT).replace(/\/+$/, '')}/v1/usage/ingest`;
   const flushIntervalMs = clampInt(options.flushIntervalMs, DEFAULT_FLUSH_INTERVAL_MS, 1, 3_600_000);
   const maxBatch = clampInt(options.maxBatch, DEFAULT_MAX_BATCH, 1, MAX_BATCH_LIMIT);
@@ -206,6 +243,7 @@ export function createUsageReporter(options: UsageReporterOptions): UsageReporte
 
   async function sendBatch(batch: UsageEvent[]): Promise<void> {
     const payload = JSON.stringify({ events: batch });
+    let lastFailure = 'no response';
     for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt += 1) {
       if (attempt > 0) await sleep(RETRY_DELAYS_MS[attempt - 1]);
       let response: Response;
@@ -216,7 +254,9 @@ export function createUsageReporter(options: UsageReporterOptions): UsageReporte
           body: payload,
           signal: requestSignal(),
         });
-      } catch {
+      } catch (error) {
+        // Only the error name: some runtimes put the rejected header value, the key, in the message.
+        lastFailure = error instanceof Error ? error.name : typeof error;
         continue;
       }
       if (response.ok) {
@@ -233,11 +273,18 @@ export function createUsageReporter(options: UsageReporterOptions): UsageReporte
         return;
       }
       if (response.status >= 400 && response.status < 500 && response.status !== 408) {
+        if (response.status === 401 || response.status === 403) {
+          warnOnce('rejected-key', `The usage API rejected the API key (HTTP ${response.status}); agent events are being dropped. Check STEALTHMARK_API_KEY.`);
+        } else {
+          warnOnce(`http-${response.status}`, `The usage API answered HTTP ${response.status}; agent events are being dropped.`);
+        }
         failures += 1;
         dropped += batch.length;
         return;
       }
+      lastFailure = `HTTP ${response.status}`;
     }
+    warnOnce('undelivered', `Could not deliver agent events to ${url} after ${RETRY_DELAYS_MS.length + 1} attempts (last: ${lastFailure}); they are being dropped.`);
     failures += 1;
     dropped += batch.length;
   }
