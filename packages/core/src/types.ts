@@ -122,7 +122,7 @@ export interface UsageEvent {
 export interface UsageReporterOptions {
   /** Site API key sent as `Authorization: Bearer <apiKey>` */
   apiKey: string;
-  /** API base URL (default: https://stealthmark-api-cifepjj5ca-uc.a.run.app, the StealthMark hosted API) */
+  /** API base URL (default: https://api.stealthmark.io, the StealthMark hosted API) */
   endpoint?: string;
   /** Max time an event waits in the queue before a flush (default: 1000) */
   flushIntervalMs?: number;

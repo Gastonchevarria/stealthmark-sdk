@@ -116,7 +116,7 @@ Only when an API key is configured (`apiKey` option or `STEALTHMARK_API_KEY`). W
 
 - Usage events (`POST /v1/usage/ingest`, sent with `Authorization: Bearer $STEALTHMARK_API_KEY`): event type, agent identifier, request path, method, host and timestamp. When no better identifier exists, the agent identifier is the request's `User-Agent`. Set `reportUsage: false` to turn this off.
 
-The default host is https://stealthmark-api-cifepjj5ca-uc.a.run.app, the StealthMark hosted API. Override it with `usageEndpoint` or `STEALTHMARK_USAGE_ENDPOINT`.
+The default host is https://api.stealthmark.io, the StealthMark hosted API. Override it with `usageEndpoint` or `STEALTHMARK_USAGE_ENDPOINT`.
 
 ## Route discovery
 

@@ -12,7 +12,7 @@ import type {
   UsageStats,
 } from './types.js';
 
-export const DEFAULT_USAGE_ENDPOINT = 'https://stealthmark-api-cifepjj5ca-uc.a.run.app';
+export const DEFAULT_USAGE_ENDPOINT = 'https://api.stealthmark.io';
 
 const DEFAULT_FLUSH_INTERVAL_MS = 1000;
 const DEFAULT_MAX_BATCH = 100;
