@@ -5,3 +5,6 @@ dist
 .env*
 .DS_Store
 .turbo
+
+# Graphify (grafo local, se regenera)
+graphify-out/

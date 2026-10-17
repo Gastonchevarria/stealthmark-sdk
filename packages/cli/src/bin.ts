@@ -2,18 +2,19 @@
 
 // ═══════════════════════════════════════════════════════════════════
 // @stealthmark/cli — Binary Executable
-// CLI interface for stealthmark init and verify
+// CLI interface for stealthmark init, verify, and audit
 // ═══════════════════════════════════════════════════════════════════
 
 import { runInit } from './commands/init.js';
 import { runVerify } from './commands/verify.js';
+import { runAudit } from './commands/audit.js';
 
-const VERSION = '0.1.3';
+const VERSION = '0.1.4';
 
 function printHelp() {
   console.log(`
 StealthMark CLI (v${VERSION})
-Command-line tool that scaffolds StealthMark middleware and checks a site for a StealthMark agent manifest.
+Command-line tool that scaffolds StealthMark middleware, checks agent manifests, and runs passive AI-readiness audits.
 
 Usage:
   stealthmark <command> [options]
@@ -21,6 +22,7 @@ Usage:
 Commands:
   init [options]       Write a starter StealthMark middleware file (Next.js, Express or Fastify)
   verify <url>         Check whether a site serves a StealthMark agent manifest
+  audit <domain>       Run a passive web & AI-surface readiness audit against a domain
   --version, -v        Show version
   --help, -h           Show this help message
 
@@ -28,9 +30,17 @@ Options (for init):
   --name <siteName>    Specify site name for the manifest
   --force              Overwrite existing middleware file
 
+Options (for audit):
+  --json               Output raw JSON report
+  --markdown           Output formatted Markdown report
+  --no-color           Disable terminal ANSI colors
+  --gateway <url>      Custom StealthMark Gateway URL
+
 Examples:
   stealthmark init
   stealthmark verify https://your-site.example
+  stealthmark audit example.com
+  stealthmark audit example.com --markdown
 `);
 }
 
@@ -96,6 +106,33 @@ async function main() {
       process.exit(0);
     } else {
       console.log(`${failed} of ${total} checks failed. See https://stealthmark.io/docs.`);
+      process.exit(1);
+    }
+  }
+
+  if (command === 'audit') {
+    const target = args[1];
+    if (!target || target.startsWith('--')) {
+      console.error('Usage: stealthmark audit <domain> [options]');
+      console.error('Example: stealthmark audit example.com');
+      process.exit(1);
+    }
+
+    const json = args.includes('--json');
+    const markdown = args.includes('--markdown');
+    const noColor = args.includes('--no-color');
+    const gatewayIdx = args.indexOf('--gateway');
+    const gateway = gatewayIdx !== -1 ? args[gatewayIdx + 1] : undefined;
+
+    const result = await runAudit(target, { json, markdown, noColor, gateway });
+
+    if (result.output) {
+      console.log(result.output);
+    }
+
+    if (result.success) {
+      process.exit(0);
+    } else {
       process.exit(1);
     }
   }

@@ -66,6 +66,28 @@ All 3 checks passed.
 
 The command exits with code 0 when all checks pass and 1 otherwise.
 
+### `stealthmark audit <domain>`
+Runs a passive readiness audit against a domain inspecting transport/TLS, DNS security records (CAA, SPF, DMARC), crawl policies (`robots.txt`, AI bot directives), AI surface (`/llms.txt`, `/.well-known/agent.json`, JSON-LD Schema.org), and defensive HTTP security headers.
+
+> Passive audit based strictly on publicly observable DNS records, HTTP responses, and published manifests. No arbitrary 0–100 score is assigned; outputs strict state counts (`pass`, `warn`, `fail`, `info`, `error`) and by-section breakdown.
+
+```bash
+# Terminal output with status counts and section details:
+npx @stealthmark/cli audit example.com
+
+# Raw JSON report (for CI/CD pipelines or automated tooling):
+npx @stealthmark/cli audit example.com --json
+
+# Formatted Markdown report:
+npx @stealthmark/cli audit example.com --markdown
+
+# Custom gateway URL:
+npx @stealthmark/cli audit example.com --gateway https://my-gateway.internal
+```
+
+The command exits with code 0 when there are no failed checks (`fail` count and `error` count are 0), and code 1 otherwise.
+
 ## License
 
 Apache 2.0, see [LICENSE](./LICENSE) and [NOTICE](./NOTICE).
+
