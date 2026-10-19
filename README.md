@@ -5,6 +5,7 @@
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](./LICENSE)
 [![Node.js >=20](https://img.shields.io/badge/node-%3E%3D20-339933.svg)](https://nodejs.org)
 [![TypeScript strict](https://img.shields.io/badge/TypeScript-strict-3178c6.svg)](./packages/core/tsconfig.json)
+[![DEUSPROOF certificate of birth](https://deusproof.com/api/agents/stealthmark/badge.svg)](https://deusproof.com/birth/stealthmark)
 
 Open-source (Apache-2.0) SDK that lets a website tell which requests come from AI agents that identify themselves, serve them a structured agent manifest or leave the page untouched, and meter that traffic.
 It ships as framework-agnostic core logic plus adapters for Next.js, Express and Fastify, and a CLI that scaffolds a starter middleware file and checks a site for a StealthMark agent manifest.
@@ -47,7 +48,7 @@ incoming request
 | `@stealthmark/core` | [`packages/core`](./packages/core) | Framework-agnostic engine: agent detection, manifest generation, usage metering |
 | `@stealthmark/next` | [`packages/next`](./packages/next) | Next.js middleware (`withStealthMark`, `stealthmark`) |
 | `@stealthmark/express` | [`packages/express`](./packages/express) | Express and Fastify middleware |
-| `@stealthmark/cli` | [`packages/cli`](./packages/cli) | `stealthmark init` writes a starter middleware file, `stealthmark verify https://your-site.example` checks a live site |
+| `@stealthmark/cli` | [`packages/cli`](./packages/cli) | `stealthmark init` writes a starter middleware file, `stealthmark verify https://your-site.example` checks a live site, and `stealthmark audit <domain>` runs an 18-point passive AI-surface & security readiness check |
 
 Requires Node.js 20 or newer.
 
