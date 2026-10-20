@@ -173,6 +173,21 @@ export const defaultMatcher = ['/((?!_next/static|_next/image|favicon.ico).*)'];
 /**
  * Meters one agent request through the usage reporter.
  */
+function resolveMeteredPath(request: NextLikeRequest, pathname: string): string {
+  if (pathname === '/scan' && request.url) {
+    try {
+      const u = new URL(request.url, 'http://localhost');
+      const dom = u.searchParams.get('domain')?.trim().toLowerCase();
+      if (dom && /^[a-z0-9.-]{1,120}$/.test(dom)) {
+        return `/scan?domain=${dom}`;
+      }
+    } catch {
+      // ignore malformed URL
+    }
+  }
+  return pathname;
+}
+
 function meterAgentRequest(
   sm: StealthMarkInstance,
   request: NextLikeRequest,
@@ -185,7 +200,7 @@ function meterAgentRequest(
     event_type: eventType,
     agent_identifier: resolveAgentIdentifier(request.headers, detection),
     metadata: buildEventMetadata({
-      path: pathname,
+      path: resolveMeteredPath(request, pathname),
       method: request.method ?? 'GET',
       host: resolveRequestHost(request.headers, { trustForwardedHost: sm.trustForwardedHost }),
     }),
