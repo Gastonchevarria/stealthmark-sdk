@@ -165,6 +165,9 @@ The default host is https://api.stealthmark.io, the StealthMark hosted API. Over
 ## Links
 
 - Website: https://stealthmark.io
+- Interactive 21-Point Auditor: https://stealthmark.io/scan
+- Agent Skill Manifest (OpenClaw / x402): https://stealthmark.io/skill.md
+- MCP Server Endpoint: https://stealthmark.io/api/mcp
 - Documentation: https://stealthmark.io/docs
 - Security reports: see [SECURITY.md](./SECURITY.md)
 - Maintainers: release steps in [RELEASING.md](./RELEASING.md)
