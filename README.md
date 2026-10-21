@@ -48,7 +48,7 @@ incoming request
 | `@stealthmark/core` | [`packages/core`](./packages/core) | Framework-agnostic engine: agent detection, manifest generation, usage metering |
 | `@stealthmark/next` | [`packages/next`](./packages/next) | Next.js middleware (`withStealthMark`, `stealthmark`) |
 | `@stealthmark/express` | [`packages/express`](./packages/express) | Express and Fastify middleware |
-| `@stealthmark/cli` | [`packages/cli`](./packages/cli) | `stealthmark init` writes a starter middleware file, `stealthmark verify https://your-site.example` checks a live site, and `stealthmark audit <domain>` runs a 21-point passive AI-surface, DNS/DMARC, bundle leak & Edge WAF readiness check |
+| `@stealthmark/cli` | [`packages/cli`](./packages/cli) | `stealthmark init` writes a starter middleware file, `stealthmark verify https://your-site.example` checks a live site, and `stealthmark audit <domain>` runs a 21-point passive AI-surface, DNS/DMARC, bundle leak, PHP 5-8 RCE & Edge WAF readiness check |
 
 Requires Node.js 20 or newer.
 
